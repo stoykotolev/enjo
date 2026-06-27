@@ -17,7 +17,14 @@ enjo/
 │   └── sync-protocol.md      # Phase 2 DRAFT stub
 ├── tui/                      # enjo — Rust + Ratatui client (crate: enjo)
 │   ├── Cargo.toml
-│   └── src/main.rs
+│   ├── migrations/0001_init.sql
+│   └── src/
+│       ├── main.rs           # terminal + event loop
+│       ├── app.rs            # App state + key handling
+│       ├── ui/mod.rs         # Today / All / Edit / Help rendering
+│       ├── store/mod.rs      # Store trait + SqliteStore
+│       ├── model.rs          # Task, Status, Priority
+│       └── config.rs         # data dir + DB path resolution
 └── server/                   # enjod — Go backend (Phase 2 placeholder)
     ├── go.mod
     └── cmd/enjod/main.go
@@ -37,10 +44,37 @@ enjo/
 cd tui && cargo run
 ```
 
+The database lives at the per-user data dir (`~/Library/Application Support/enjo/enjo.db`
+on macOS). Set `ENJO_DATA_DIR` to override the location.
+
+## Keybindings
+
+The app opens on the **Today** view (in-progress → overdue/due-today → next up).
+
+| key | action |
+|---|---|
+| `j` / `k` (or ↓ / ↑) | move selection |
+| `n` | new task |
+| `e` / `Enter` | edit selected task |
+| `Space` | toggle done |
+| `s` | cycle status (todo → in_progress → done) |
+| `p` | cycle priority (low → medium → high → urgent) |
+| `d` | delete (soft) selected task |
+| `Tab` | switch Today ↔ All tasks |
+| `/` | cycle the status filter (All view) |
+| `S` | force sync (local-only build; arrives in Phase 3) |
+| `?` | help |
+| `q` | quit |
+
+In the edit form: `Tab` / `Shift-Tab` move between fields, type to edit text
+fields, `s` / `p` cycle status / priority, `Enter` or `Ctrl-S` saves, `Esc`
+cancels.
+
 ## Phase status
 
-- **Phase 1 — local-only TUI:** in progress. No backend, no network, no sync,
-  no auth.
+- **Phase 1 — local-only TUI:** ✅ complete. Full task CRUD, Today/Next view,
+  All-tasks view with filtering, edit form, keybindings, help — all backed by a
+  relational local SQLite DB. No backend, no network, no sync, no auth.
 - **Phase 2 — Go backend (`enjod`):** deferred (placeholder only).
 - **Phase 3 — sync:** deferred.
 
