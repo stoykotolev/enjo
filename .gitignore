@@ -1,0 +1,23 @@
+# Rust
+/target
+tui/target
+**/*.rs.bk
+
+# Go
+server/enjod
+*.test
+
+# SQLite databases
+*.db
+*.db-wal
+*.db-shm
+
+# macOS
+.DS_Store
+
+# Editor / IDE cruft
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
