@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(phase1): drop once main/app use Config
-
 //! Filesystem path resolution for enjo (Phase 1, local only).
 //!
 //! Phase 1 has no backend, network, or sync, so the only job here is to decide
@@ -54,6 +51,7 @@ impl Config {
 
     /// Construct a `Config` from an explicit data directory without touching the
     /// filesystem. For tests and explicit callers.
+    #[allow(dead_code)] // test/explicit-caller helper; Phase 2/3 config loading will use it
     pub fn with_data_dir(data_dir: PathBuf) -> Self {
         Self { data_dir }
     }
@@ -64,6 +62,7 @@ impl Config {
     }
 
     /// The resolved data directory.
+    #[allow(dead_code)] // surfaced for tests / Phase 2/3 config UI
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }

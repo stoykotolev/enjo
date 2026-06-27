@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(phase1): drop once store/ui/app consume the model
-
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -94,6 +91,8 @@ impl Priority {
 
     /// Numeric rank for sorting (higher = more important). Mirrors the derived
     /// `Ord`; provided as a convenience for explicit sort keys.
+    // The app sorts via the derived `Ord` directly; kept for tests / Phase 2/3.
+    #[allow(dead_code)]
     pub fn rank(&self) -> i32 {
         match self {
             Priority::Low => 0,

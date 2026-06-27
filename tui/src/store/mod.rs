@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(phase1): drop once app/ui call the store
-
 //! Local SQLite storage layer for enjo.
 //!
 //! The relational SQLite DB is the source of truth for the UI. Access goes
@@ -59,6 +56,7 @@ impl SqliteStore {
     }
 
     /// Open an in-memory DB running the same migration. For tests.
+    #[allow(dead_code)] // test-only constructor (app/ui tests drive an in-memory store)
     pub fn open_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         Self::init(conn)
