@@ -1,0 +1,27 @@
+# Template for the Homebrew formula. The release workflow substitutes the
+# @PLACEHOLDERS@ and writes the result to Formula/enjo.rb on each tagged release.
+# Do not edit Formula/enjo.rb by hand — edit this template instead.
+class Enjo < Formula
+  desc "Local-first TUI task manager"
+  homepage "https://github.com/@REPO@"
+  version "@VERSION@"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/@REPO@/releases/download/@TAG@/enjo-aarch64-apple-darwin.tar.gz"
+      sha256 "@ARM_SHA@"
+    end
+    on_intel do
+      url "https://github.com/@REPO@/releases/download/@TAG@/enjo-x86_64-apple-darwin.tar.gz"
+      sha256 "@INTEL_SHA@"
+    end
+  end
+
+  def install
+    bin.install "enjo"
+  end
+
+  test do
+    assert_match "enjo", shell_output("#{bin}/enjo --version")
+  end
+end

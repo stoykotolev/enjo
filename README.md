@@ -38,10 +38,37 @@ enjo/
 - **sync** — last-write-wins protocol with a server-assigned change-feed cursor.
   Phase 2/3.
 
+## Install
+
+### Homebrew (macOS, prebuilt binary)
+
+This repo doubles as its own Homebrew tap. Because the repo is named `enjo`
+(not `homebrew-enjo`), tap it by URL once, then install:
+
+```sh
+brew tap stoykotolev/enjo https://github.com/stoykotolev/enjo
+brew install enjo
+# update later:
+brew upgrade enjo
+```
+
+Prebuilt binaries are published for macOS arm64 and x86_64 on each tagged
+release, so no Rust toolchain is needed on the target machine.
+
+> Note: the sync engine is Phase 2/3 and not built yet, so each machine keeps
+> its own independent task list for now.
+
+### From source
+
+```sh
+git clone https://github.com/stoykotolev/enjo
+cd enjo && cargo install --path tui      # installs `enjo` to ~/.cargo/bin
+```
+
 ## How to run
 
 ```sh
-cd tui && cargo run
+cd tui && cargo run        # from a clone, or just `enjo` once installed
 ```
 
 The database lives at the per-user data dir (`~/Library/Application Support/enjo/enjo.db`
@@ -115,3 +142,22 @@ change it in the app.
 - **Phase 3 — sync:** deferred.
 
 Full plan: Inkdrop note inkdrop://note/ZTrjGL-_
+
+## Releasing (maintainer)
+
+Releases are automated by `.github/workflows/release.yml`, triggered by pushing
+a `v*` tag:
+
+```sh
+# bump the version first so `enjo --version` matches the tag
+#   edit tui/Cargo.toml -> version = "0.2.0", then:
+git commit -am "Release v0.2.0"
+git tag v0.2.0
+git push origin main --tags
+```
+
+The workflow builds the macOS arm64 + x86_64 binaries, publishes a GitHub
+Release with the tarballs, regenerates `Formula/enjo.rb` from
+`packaging/enjo.rb.tmpl`, and commits it back — so `brew upgrade enjo` picks up
+the new version. Edit `packaging/enjo.rb.tmpl` (not `Formula/enjo.rb`) to change
+the formula.
