@@ -52,7 +52,7 @@ brew install enjo
 brew upgrade enjo
 ```
 
-Prebuilt binaries are published for macOS arm64 and x86_64 on each tagged
+A prebuilt binary is published for macOS arm64 (Apple Silicon) on each tagged
 release, so no Rust toolchain is needed on the target machine.
 
 > Note: the sync engine is Phase 2/3 and not built yet, so each machine keeps

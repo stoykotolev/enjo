@@ -22,8 +22,6 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             os: macos-14
-          - target: x86_64-apple-darwin
-            os: macos-13
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -70,21 +68,18 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             dist/enjo-aarch64-apple-darwin.tar.gz \
-            dist/enjo-x86_64-apple-darwin.tar.gz \
             --title "${GITHUB_REF_NAME}" --generate-notes
 
       - name: Regenerate the Homebrew formula
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           ARM_SHA="$(cat dist/enjo-aarch64-apple-darwin.tar.gz.sha256)"
-          INTEL_SHA="$(cat dist/enjo-x86_64-apple-darwin.tar.gz.sha256)"
           mkdir -p Formula
           sed \
             -e "s|@REPO@|${GITHUB_REPOSITORY}|g" \
             -e "s|@TAG@|${GITHUB_REF_NAME}|g" \
             -e "s|@VERSION@|${VERSION}|g" \
             -e "s|@ARM_SHA@|${ARM_SHA}|g" \
-            -e "s|@INTEL_SHA@|${INTEL_SHA}|g" \
             packaging/enjo.rb.tmpl > Formula/enjo.rb
           cat Formula/enjo.rb
 
