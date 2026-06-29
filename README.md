@@ -73,12 +73,12 @@ cancels.
 ## Status bar integration
 
 `enjo status` is a headless command that prints the current in-progress task on
-one line — the same task that heads the "In progress" section in the TUI — with
-a `+N` counter when several are in progress, or `idle` when none are. It reads
-the same local database the app writes, so it stays in sync.
+one line — the same task that heads the "In progress" section in the TUI — or
+`idle` when none is. (enjo enforces a single in-progress task at a time.) It
+reads the same local database the app writes, so it stays in sync.
 
 ```sh
-enjo status                  # e.g. "Refactor sync engine +1"
+enjo status                  # e.g. "Refactor sync engine"
 enjo status --max-len 40     # truncate the title (default 40)
 enjo status --tmux           # escape '#' as '##' so titles are tmux-safe
 ```

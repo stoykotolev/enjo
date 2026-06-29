@@ -16,19 +16,13 @@ pub const DEFAULT_MAX_LEN: usize = 40;
 pub const IDLE_TEXT: &str = "idle";
 
 /// Build the one-line status string from the in-progress tasks (already in
-/// Today sort order). The leading task's title is truncated to `max_len`
-/// characters; when more than one task is in progress a ` +N` counter for the
-/// remainder is appended.
+/// Today sort order). enjo enforces a single work-in-progress task, so this
+/// shows the one task's title (truncated to `max_len`), or `idle` when none is
+/// in progress. If several somehow exist, only the leading one is shown.
 pub fn format_status(in_progress: &[Task], max_len: usize) -> String {
-    match in_progress.split_first() {
+    match in_progress.first() {
         None => IDLE_TEXT.to_string(),
-        Some((top, rest)) => {
-            let mut out = truncate(&top.title, max_len);
-            if !rest.is_empty() {
-                out.push_str(&format!(" +{}", rest.len()));
-            }
-            out
-        }
+        Some(top) => truncate(&top.title, max_len),
     }
 }
 
@@ -80,9 +74,11 @@ mod tests {
     }
 
     #[test]
-    fn multiple_tasks_append_counter() {
+    fn multiple_in_progress_shows_only_the_first() {
+        // The single-WIP rule means this shouldn't occur in normal use, but if
+        // several are present we still render just the leading task (no counter).
         let tasks = vec![task("Top task"), task("Second"), task("Third")];
-        assert_eq!(format_status(&tasks, DEFAULT_MAX_LEN), "Top task +2");
+        assert_eq!(format_status(&tasks, DEFAULT_MAX_LEN), "Top task");
     }
 
     #[test]
@@ -109,9 +105,9 @@ mod tests {
     }
 
     #[test]
-    fn zero_max_len_yields_empty_then_counter() {
-        let tasks = vec![task("anything"), task("another")];
-        assert_eq!(format_status(&tasks, 0), " +1");
+    fn zero_max_len_yields_empty() {
+        let tasks = vec![task("anything")];
+        assert_eq!(format_status(&tasks, 0), "");
     }
 
     #[test]
