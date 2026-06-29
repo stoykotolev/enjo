@@ -506,6 +506,19 @@ impl App {
             None => Task::new(title.clone()),
         };
 
+        // Enforce a single work-in-progress task: refuse to save this one as
+        // InProgress while another already is, keeping the form open (like the
+        // other validation failures above). Editing the in-progress task itself
+        // is fine — it's excluded via `editing_id`.
+        if self.edit.status == Status::InProgress {
+            if let Some(other) = self.other_in_progress_title(self.edit.editing_id) {
+                self.status_message = Some(format!(
+                    "Already in progress: '{other}'. Finish or pause it first."
+                ));
+                return Ok(());
+            }
+        }
+
         task.title = title;
         task.notes = non_empty(&self.edit.notes);
         task.project = non_empty(&self.edit.project);
@@ -528,6 +541,16 @@ impl App {
         Ok(())
     }
 
+    /// The title of another (non-deleted) task already in progress, excluding
+    /// `except`. enjo enforces a single work-in-progress task, so a task may
+    /// only move to `InProgress` when this returns `None`.
+    fn other_in_progress_title(&self, except: Option<Uuid>) -> Option<String> {
+        self.tasks
+            .iter()
+            .find(|t| !t.deleted && t.status == Status::InProgress && Some(t.id) != except)
+            .map(|t| t.title.clone())
+    }
+
     fn toggle_selected_done(&mut self) -> Result<()> {
         if let Some(mut task) = self.selected_task() {
             task.toggle_done();
@@ -539,7 +562,18 @@ impl App {
 
     fn cycle_selected_status(&mut self) -> Result<()> {
         if let Some(mut task) = self.selected_task() {
-            task.set_status(task.status.next());
+            let next = task.status.next();
+            // Only one task may be in progress at a time: block the move and
+            // point at the task that's already in progress.
+            if next == Status::InProgress {
+                if let Some(other) = self.other_in_progress_title(Some(task.id)) {
+                    self.status_message = Some(format!(
+                        "Already in progress: '{other}'. Finish or pause it first."
+                    ));
+                    return Ok(());
+                }
+            }
+            task.set_status(next);
             task.touch();
             self.persist_and_reload(task)?;
         }
@@ -810,6 +844,79 @@ mod tests {
         a.on_key(key(KeyCode::Char('s'))).unwrap(); // Todo -> InProgress
         let got = a.store.get(id).unwrap().unwrap();
         assert_eq!(got.status, Status::InProgress);
+    }
+
+    #[test]
+    fn cannot_start_second_in_progress_via_s_key() {
+        let mut a = app();
+        seed(&mut a, Task::new("first".into()));
+        seed(&mut a, Task::new("second".into()));
+
+        // Start the first task (Todo -> InProgress) — allowed.
+        a.on_key(key(KeyCode::Char('s'))).unwrap();
+        // Move to the second task and try to start it too — blocked.
+        a.on_key(key(KeyCode::Char('j'))).unwrap();
+        a.on_key(key(KeyCode::Char('s'))).unwrap();
+
+        let in_progress: Vec<_> = a
+            .tasks
+            .iter()
+            .filter(|t| t.status == Status::InProgress)
+            .map(|t| t.title.clone())
+            .collect();
+        assert_eq!(in_progress, vec!["first".to_string()]);
+        assert!(a.status_message().unwrap().contains("Already in progress"));
+    }
+
+    #[test]
+    fn in_progress_task_can_still_advance_to_done() {
+        let mut a = app();
+        seed(&mut a, Task::new("solo".into()));
+        let id = a.tasks[0].id;
+        a.on_key(key(KeyCode::Char('s'))).unwrap(); // Todo -> InProgress
+        assert_eq!(a.store.get(id).unwrap().unwrap().status, Status::InProgress);
+        // The single-WIP guard only blocks entering InProgress; advancing the
+        // in-progress task itself to Done is still allowed.
+        a.on_key(key(KeyCode::Char('s'))).unwrap(); // InProgress -> Done
+        assert_eq!(a.store.get(id).unwrap().unwrap().status, Status::Done);
+    }
+
+    #[test]
+    fn cannot_set_in_progress_via_edit_form_when_one_exists() {
+        let mut a = app();
+        seed(&mut a, Task::new("active".into()));
+        a.on_key(key(KeyCode::Char('s'))).unwrap(); // active -> InProgress
+
+        // Create a new task and try to mark it InProgress in the form.
+        a.on_key(key(KeyCode::Char('n'))).unwrap();
+        type_str(&mut a, "newbie");
+        a.on_key(key(KeyCode::BackTab)).unwrap(); // Title -> Status
+        a.on_key(key(KeyCode::Char('s'))).unwrap(); // Todo -> InProgress (form buffer)
+        a.on_key(key(KeyCode::Enter)).unwrap(); // save -> blocked
+
+        assert_eq!(a.screen(), Screen::Edit);
+        assert!(a.status_message().unwrap().contains("Already in progress"));
+        let titles: Vec<_> = a.tasks.iter().map(|t| t.title.clone()).collect();
+        assert!(!titles.contains(&"newbie".to_string()));
+    }
+
+    #[test]
+    fn editing_in_progress_task_can_keep_it_in_progress() {
+        let mut a = app();
+        seed(&mut a, Task::new("focus".into()));
+        a.on_key(key(KeyCode::Char('s'))).unwrap(); // focus -> InProgress
+        let id = a.tasks[0].id;
+
+        // Editing the in-progress task itself (status stays InProgress) must not
+        // be blocked — it is excluded from the "other in progress" check.
+        a.on_key(key(KeyCode::Char('e'))).unwrap();
+        type_str(&mut a, " edited");
+        a.on_key(key(KeyCode::Enter)).unwrap();
+
+        assert_eq!(a.screen(), Screen::Today);
+        let got = a.store.get(id).unwrap().unwrap();
+        assert_eq!(got.status, Status::InProgress);
+        assert_eq!(got.title, "focus edited");
     }
 
     #[test]
