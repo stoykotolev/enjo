@@ -91,13 +91,16 @@ Install the binary and point tmux at it:
 cargo install --path tui     # installs `enjo` to ~/.cargo/bin
 ```
 
-Append the segment to your status line (after the line that defines
-`status-left`), and set a refresh interval:
+Append the segment to your status line and set a refresh interval. Using
+`set -ga` adds to whatever your theme already defines, so the task lands at the
+end of that side — e.g. on the right, after the rest of `status-right`:
 
 ```tmux
 set -g status-interval 1
-set -ga status-left "#[bold]▶ #[nobold]#(enjo status --tmux --max-len 40) "
+set -ga status-right "#[bold] ▶ #(enjo status --tmux --max-len 40) "
 ```
+
+(Use `set -ga status-left` instead to place it on the left.)
 
 tmux runs `#()` commands asynchronously and refreshes them every
 `status-interval` seconds, so the displayed task updates shortly after you
