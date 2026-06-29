@@ -70,6 +70,39 @@ In the edit form: `Tab` / `Shift-Tab` move between fields, type to edit text
 fields, `s` / `p` cycle status / priority, `Enter` or `Ctrl-S` saves, `Esc`
 cancels.
 
+## Status bar integration
+
+`enjo status` is a headless command that prints the current in-progress task on
+one line — the same task that heads the "In progress" section in the TUI — with
+a `+N` counter when several are in progress, or `idle` when none are. It reads
+the same local database the app writes, so it stays in sync.
+
+```sh
+enjo status                  # e.g. "Refactor sync engine +1"
+enjo status --max-len 40     # truncate the title (default 40)
+enjo status --tmux           # escape '#' as '##' so titles are tmux-safe
+```
+
+### tmux
+
+Install the binary and point tmux at it:
+
+```sh
+cargo install --path tui     # installs `enjo` to ~/.cargo/bin
+```
+
+Append the segment to your status line (after the line that defines
+`status-left`), and set a refresh interval:
+
+```tmux
+set -g status-interval 1
+set -ga status-left "#[bold]▶ #[nobold]#(enjo status --tmux --max-len 40) "
+```
+
+tmux runs `#()` commands asynchronously and refreshes them every
+`status-interval` seconds, so the displayed task updates shortly after you
+change it in the app.
+
 ## Phase status
 
 - **Phase 1 — local-only TUI:** ✅ complete. Full task CRUD, Today/Next view,

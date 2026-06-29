@@ -294,6 +294,17 @@ impl App {
         ]
     }
 
+    /// The in-progress tasks, in Today sort order (priority desc, due asc,
+    /// created asc). Used by the headless `enjo status` command to surface
+    /// "what am I working on right now" outside the TUI (e.g. a tmux status bar).
+    pub fn in_progress_tasks(&self) -> Vec<Task> {
+        self.today_sections()
+            .into_iter()
+            .next()
+            .map(|s| s.tasks)
+            .unwrap_or_default()
+    }
+
     /// Flattened Today list (section1 ++ section2 ++ section3) the cursor indexes.
     fn today_visible(&self) -> Vec<Task> {
         self.today_sections()
