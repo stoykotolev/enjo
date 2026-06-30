@@ -246,8 +246,9 @@ impl App {
     // ----- Derived views. -----
 
     /// The list screen currently in effect (Edit/Help overlays defer to the
-    /// screen they were opened from).
-    fn list_screen(&self) -> Screen {
+    /// screen they were opened from). The renderer uses this to draw the list
+    /// behind a modal overlay.
+    pub fn list_screen(&self) -> Screen {
         match self.screen {
             Screen::Today => Screen::Today,
             Screen::All => Screen::All,

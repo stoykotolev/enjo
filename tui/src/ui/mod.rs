@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
 
@@ -15,13 +15,21 @@ use crate::model::{Priority, Status, Task};
 /// Top-level entry point: draw the active screen for the current frame.
 pub fn render(f: &mut Frame, app: &App) {
     match app.screen() {
-        Screen::Edit => render_edit(f, app),
         Screen::Help => render_help(f, app),
+        // The edit form is a modal: draw the underlying list first, then float
+        // the form over it.
+        Screen::Edit => {
+            render_list(f, app);
+            render_edit_modal(f, app);
+        }
         Screen::Today | Screen::All => render_list(f, app),
     }
 }
 
 fn render_list(f: &mut Frame, app: &App) {
+    // `list_screen` resolves Edit/Help overlays back to the list underneath, so
+    // this renders correctly both on its own and as a modal backdrop.
+    let screen = app.list_screen();
     let chunks = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(1),
@@ -29,12 +37,12 @@ fn render_list(f: &mut Frame, app: &App) {
     ])
     .split(f.area());
 
-    render_header(f, app, chunks[0]);
-    match app.screen() {
+    render_header(f, app, screen, chunks[0]);
+    match screen {
         Screen::All => render_all(f, app, chunks[1]),
         _ => render_today_split(f, app, chunks[1]),
     }
-    render_footer(f, app, chunks[2]);
+    render_footer(f, app, screen, chunks[2]);
 }
 
 /// Below this content width the two Today panes would be too cramped, so we
@@ -84,8 +92,8 @@ fn render_overview(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(Paragraph::new(lines).block(block), area);
 }
 
-fn render_header(f: &mut Frame, app: &App, area: Rect) {
-    let label = match app.screen() {
+fn render_header(f: &mut Frame, app: &App, screen: Screen, area: Rect) {
+    let label = match screen {
         Screen::All => format!("enjo · All tasks · filter: {}", app.filter().label()),
         _ => "enjo · Today / Next".to_string(),
     };
@@ -226,10 +234,15 @@ fn task_spans(task: &Task) -> Vec<Span<'static>> {
     ]
 }
 
-fn render_edit(f: &mut Frame, app: &App) {
-    let chunks = Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).split(f.area());
+/// The new/edit task form, floated as a centered modal over the list. The same
+/// form serves both creating a task and viewing/editing an existing one.
+fn render_edit_modal(f: &mut Frame, app: &App) {
     let es = app.edit_state();
-    let title = if es.is_new() { "New task" } else { "Edit task" };
+    let title = if es.is_new() {
+        " New task "
+    } else {
+        " Edit task "
+    };
 
     let mut lines = vec![
         field_line("Title", es.title(), es.field() == EditField::Title, true),
@@ -263,17 +276,37 @@ fn render_edit(f: &mut Frame, app: &App) {
     lines.push(
         Line::from("Tab/Shift-Tab or ↑/↓ move · ←/→ cycle priority/status · type to edit").dim(),
     );
+    lines.push(Line::from("Enter / Ctrl-S save · Esc cancel").dim());
 
-    let block = Block::default().borders(Borders::ALL).title(title);
+    // Size to content (+2 for the border), clamped to the frame by centered_rect.
+    let height = lines.len() as u16 + 2;
+    let area = centered_rect(64, height, f.area());
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(title);
+    // Clear wipes the list cells underneath so the form is legible.
+    f.render_widget(Clear, area);
     f.render_widget(
         Paragraph::new(lines)
             .block(block)
             .wrap(Wrap { trim: false }),
-        chunks[0],
+        area,
     );
+}
 
-    let hint = Line::from(" Enter / Ctrl-S save · Esc cancel ").dim();
-    f.render_widget(Paragraph::new(hint), chunks[1]);
+/// A rectangle of `width` × `height` centered within `area`, clamped so it never
+/// exceeds the frame (keeps the modal on screen on small terminals).
+fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
+    let w = width.min(area.width);
+    let h = height.min(area.height);
+    Rect {
+        x: area.x + (area.width - w) / 2,
+        y: area.y + (area.height - h) / 2,
+        width: w,
+        height: h,
+    }
 }
 
 /// Render a single labelled form field. `text_field` shows a fake cursor when
@@ -347,9 +380,9 @@ fn render_help(f: &mut Frame, app: &App) {
     f.render_widget(Paragraph::new(hint), chunks[1]);
 }
 
-fn render_footer(f: &mut Frame, app: &App, area: Rect) {
+fn render_footer(f: &mut Frame, app: &App, screen: Screen, area: Rect) {
     let count = app.visible_tasks().len();
-    let view = match app.screen() {
+    let view = match screen {
         Screen::All => format!("All [{}]", app.filter().label()),
         _ => "Today".to_string(),
     };
@@ -471,6 +504,24 @@ mod tests {
         assert!(text.contains("All tasks"), "overview pane present");
         // The done task is hidden from Today but visible in the overview.
         assert!(text.contains("all done"), "done task shown in overview");
+    }
+
+    #[test]
+    fn edit_form_floats_as_modal_over_the_list() {
+        let mut a = app();
+        add_task(&mut a, "background task");
+        press(&mut a, KeyCode::Char('e')); // open the edit modal on the task
+
+        let mut terminal = Terminal::new(TestBackend::new(100, 24)).unwrap();
+        terminal.draw(|f| render(f, &a)).unwrap();
+        let text = buffer_text(&terminal);
+        // The modal is up…
+        assert!(text.contains("Edit task"), "edit modal title present");
+        // …and the list is still rendered behind it (not a full-window swap).
+        assert!(
+            text.contains("Today / Next"),
+            "underlying list still visible behind the modal"
+        );
     }
 
     #[test]
