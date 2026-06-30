@@ -363,21 +363,28 @@ impl App {
     }
 
     fn on_key_list(&mut self, key: KeyEvent) -> Result<()> {
+        // Ctrl-S is the force-sync placeholder (frees plain `S` for reverse
+        // status cycling). Some terminals send it as 's', others 'S'.
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && matches!(key.code, KeyCode::Char('s') | KeyCode::Char('S'))
+        {
+            self.status_message = Some("Sync arrives in Phase 3 (local-only build)".to_string());
+            return Ok(());
+        }
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => self.select_next(),
             KeyCode::Char('k') | KeyCode::Up => self.select_prev(),
             KeyCode::Char('n') => self.open_new(),
             KeyCode::Char('e') | KeyCode::Enter => self.open_edit_selected(),
             KeyCode::Char(' ') => self.toggle_selected_done()?,
-            KeyCode::Char('s') => self.cycle_selected_status()?,
-            KeyCode::Char('p') => self.cycle_selected_priority()?,
+            // Lowercase steps forward through the cycle, Shift steps backward.
+            KeyCode::Char('s') => self.cycle_selected_status(true)?,
+            KeyCode::Char('S') => self.cycle_selected_status(false)?,
+            KeyCode::Char('p') => self.cycle_selected_priority(true)?,
+            KeyCode::Char('P') => self.cycle_selected_priority(false)?,
             KeyCode::Char('d') => self.delete_selected()?,
             KeyCode::Char('/') => self.cycle_filter(),
             KeyCode::Tab => self.toggle_view(),
-            KeyCode::Char('S') => {
-                self.status_message =
-                    Some("Sync arrives in Phase 3 (local-only build)".to_string());
-            }
             KeyCode::Char('?') => {
                 self.help_return = self.screen;
                 self.screen = Screen::Help;
@@ -560,11 +567,17 @@ impl App {
         Ok(())
     }
 
-    fn cycle_selected_status(&mut self) -> Result<()> {
+    fn cycle_selected_status(&mut self, forward: bool) -> Result<()> {
         if let Some(mut task) = self.selected_task() {
-            let next = task.status.next();
+            let next = if forward {
+                task.status.next()
+            } else {
+                prev_status(task.status)
+            };
             // Only one task may be in progress at a time: block the move and
-            // point at the task that's already in progress.
+            // point at the task that's already in progress. The guard keys off
+            // the *target* status, so it covers stepping backward into
+            // in-progress (Done -> InProgress) as well as forward.
             if next == Status::InProgress {
                 if let Some(other) = self.other_in_progress_title(Some(task.id)) {
                     self.status_message = Some(format!(
@@ -580,9 +593,13 @@ impl App {
         Ok(())
     }
 
-    fn cycle_selected_priority(&mut self) -> Result<()> {
+    fn cycle_selected_priority(&mut self, forward: bool) -> Result<()> {
         if let Some(mut task) = self.selected_task() {
-            task.priority = task.priority.next();
+            task.priority = if forward {
+                task.priority.next()
+            } else {
+                prev_priority(task.priority)
+            };
             task.touch();
             self.persist_and_reload(task)?;
         }
@@ -1078,8 +1095,63 @@ mod tests {
     #[test]
     fn sync_key_shows_local_only_message() {
         let mut a = app();
-        a.on_key(key(KeyCode::Char('S'))).unwrap();
+        a.on_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL))
+            .unwrap();
         assert!(a.status_message().unwrap().contains("Phase 3"));
+    }
+
+    #[test]
+    fn shift_s_steps_status_backward() {
+        let mut a = app();
+        a.on_key(key(KeyCode::Char('n'))).unwrap();
+        type_str(&mut a, "task");
+        a.on_key(key(KeyCode::Enter)).unwrap();
+        // Forward once: Todo -> InProgress.
+        a.on_key(key(KeyCode::Char('s'))).unwrap();
+        assert_eq!(a.visible_tasks()[0].status, Status::InProgress);
+        // Shift+S steps back: InProgress -> Todo, without passing through Done.
+        a.on_key(key(KeyCode::Char('S'))).unwrap();
+        assert_eq!(a.visible_tasks()[0].status, Status::Todo);
+    }
+
+    #[test]
+    fn shift_p_steps_priority_backward() {
+        let mut a = app();
+        a.on_key(key(KeyCode::Char('n'))).unwrap();
+        type_str(&mut a, "task");
+        a.on_key(key(KeyCode::Enter)).unwrap();
+        // Default priority is Medium; one step back -> Low.
+        a.on_key(key(KeyCode::Char('P'))).unwrap();
+        assert_eq!(a.visible_tasks()[0].priority, Priority::Low);
+    }
+
+    #[test]
+    fn shift_s_into_in_progress_respects_single_wip() {
+        let mut a = app();
+        // "first" is already in progress; "second" is Done. Stepping "second"
+        // backward (Done -> InProgress) must be blocked by the single-WIP guard.
+        let mut first = Task::new("first".into());
+        first.set_status(Status::InProgress);
+        seed(&mut a, first);
+        let mut second = Task::new("second".into());
+        second.set_status(Status::Done);
+        seed(&mut a, second);
+        let second_id = a.tasks.iter().find(|t| t.title == "second").unwrap().id;
+
+        // Done tasks are hidden on Today; switch to All to select "second".
+        a.on_key(key(KeyCode::Tab)).unwrap();
+        let second_idx = a
+            .visible_tasks()
+            .iter()
+            .position(|t| t.title == "second")
+            .unwrap();
+        for _ in 0..second_idx {
+            a.on_key(key(KeyCode::Char('j'))).unwrap();
+        }
+        a.on_key(key(KeyCode::Char('S'))).unwrap(); // Done -> InProgress, blocked
+
+        assert_eq!(a.store.get(second_id).unwrap().unwrap().status, Status::Done);
+        assert!(a.status_message().unwrap().contains("Already in progress"));
     }
 
     #[test]

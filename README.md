@@ -84,12 +84,12 @@ The app opens on the **Today** view (in-progress → overdue/due-today → next 
 | `n` | new task |
 | `e` / `Enter` | edit selected task |
 | `Space` | toggle done |
-| `s` | cycle status (todo → in_progress → done) |
-| `p` | cycle priority (low → medium → high → urgent) |
+| `s` / `S` | cycle status forward / backward (todo ↔ in_progress ↔ done) |
+| `p` / `P` | cycle priority forward / backward (low ↔ medium ↔ high ↔ urgent) |
 | `d` | delete (soft) selected task |
 | `Tab` | switch Today ↔ All tasks |
 | `/` | cycle the status filter (All view) |
-| `S` | force sync (local-only build; arrives in Phase 3) |
+| `Ctrl-S` | force sync (local-only build; arrives in Phase 3) |
 | `?` | help |
 | `q` | quit |
 
