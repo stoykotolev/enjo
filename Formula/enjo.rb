@@ -4,14 +4,14 @@
 class Enjo < Formula
   desc "Local-first TUI task manager"
   homepage "https://github.com/stoykotolev/enjo"
-  version "0.2.0"
+  version "0.2.1"
 
   # Apple Silicon only for now. Add an `on_intel` block (and the x86_64 build
   # back to the release workflow) if an Intel Mac ever needs it.
   on_macos do
     on_arm do
-      url "https://github.com/stoykotolev/enjo/releases/download/v0.2.0/enjo-aarch64-apple-darwin.tar.gz"
-      sha256 "7f9d66ca4219d36bfb7e3bc5d9b16ad880179e5cba439edd904d0e658a0741f7"
+      url "https://github.com/stoykotolev/enjo/releases/download/v0.2.1/enjo-aarch64-apple-darwin.tar.gz"
+      sha256 "c2c65b485e14cef389f2350469be01df2e0208f2663e55a9f56b6344e700abd2"
     end
   end
 
