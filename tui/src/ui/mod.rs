@@ -32,9 +32,56 @@ fn render_list(f: &mut Frame, app: &App) {
     render_header(f, app, chunks[0]);
     match app.screen() {
         Screen::All => render_all(f, app, chunks[1]),
-        _ => render_today(f, app, chunks[1]),
+        _ => render_today_split(f, app, chunks[1]),
     }
     render_footer(f, app, chunks[2]);
+}
+
+/// Below this content width the two Today panes would be too cramped, so we
+/// fall back to the single full-width Today/Next list.
+const SPLIT_MIN_WIDTH: u16 = 60;
+
+/// The Today screen: the interactive Today/Next list on the left, plus a
+/// read-only overview of every task (completed included) on the right when the
+/// terminal is wide enough to split.
+fn render_today_split(f: &mut Frame, app: &App, area: Rect) {
+    if area.width < SPLIT_MIN_WIDTH {
+        render_today(f, app, area);
+        return;
+    }
+    let panes =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
+    render_today(f, app, panes[0]);
+    render_overview(f, app, panes[1]);
+}
+
+/// Read-only "All tasks" pane: every non-deleted task, done ones dimmed and
+/// sorted to the bottom. Non-interactive — the cursor stays on the Today list.
+fn render_overview(f: &mut Frame, app: &App, area: Rect) {
+    let tasks = app.overview_tasks();
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!("All tasks ({})", tasks.len()));
+
+    if tasks.is_empty() {
+        f.render_widget(
+            Paragraph::new(Line::from("No tasks yet").dim()).block(block),
+            area,
+        );
+        return;
+    }
+
+    let lines: Vec<Line> = tasks
+        .iter()
+        .map(|t| {
+            let mut line = Line::from(task_spans(t));
+            if t.status == Status::Done {
+                line.style = Style::default().add_modifier(Modifier::DIM);
+            }
+            line
+        })
+        .collect();
+    f.render_widget(Paragraph::new(lines).block(block), area);
 }
 
 fn render_header(f: &mut Frame, app: &App, area: Rect) {
@@ -396,6 +443,45 @@ mod tests {
         // Help overlay.
         press(&mut a, KeyCode::Char('?'));
         terminal.draw(|f| render(f, &a)).unwrap();
+    }
+
+    fn buffer_text(terminal: &Terminal<TestBackend>) -> String {
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect()
+    }
+
+    #[test]
+    fn wide_today_renders_overview_pane_with_done_tasks() {
+        let mut a = app();
+        add_task(&mut a, "still going");
+        // Drive a second task to done so it only shows in the overview pane.
+        add_task(&mut a, "all done");
+        press(&mut a, KeyCode::Char('s')); // Todo -> InProgress
+        press(&mut a, KeyCode::Char('s')); // InProgress -> Done
+
+        let mut terminal = Terminal::new(TestBackend::new(100, 20)).unwrap();
+        terminal.draw(|f| render(f, &a)).unwrap();
+        let text = buffer_text(&terminal);
+        assert!(text.contains("Today / Next"), "left pane present");
+        assert!(text.contains("All tasks"), "overview pane present");
+        // The done task is hidden from Today but visible in the overview.
+        assert!(text.contains("all done"), "done task shown in overview");
+    }
+
+    #[test]
+    fn narrow_today_falls_back_to_single_pane() {
+        let mut a = app();
+        add_task(&mut a, "task");
+        let mut terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
+        terminal.draw(|f| render(f, &a)).unwrap();
+        let text = buffer_text(&terminal);
+        assert!(text.contains("Today / Next"));
+        assert!(!text.contains("All tasks"), "no split below min width");
     }
 
     #[test]

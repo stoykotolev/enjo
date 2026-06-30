@@ -77,6 +77,11 @@ on macOS). Set `ENJO_DATA_DIR` to override the location.
 ## Keybindings
 
 The app opens on the **Today** view (in-progress → overdue/due-today → next up).
+On a wide enough terminal it splits side-by-side: the interactive Today/Next
+list on the left, and a read-only **All tasks** overview on the right showing
+every task — completed ones dimmed and sorted to the bottom. The cursor and all
+keys act on the Today list; the overview is just for glancing. Narrow terminals
+fall back to the single Today list (use `Tab` for the full All-tasks view).
 
 | key | action |
 |---|---|

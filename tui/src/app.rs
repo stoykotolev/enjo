@@ -313,6 +313,22 @@ impl App {
             .collect()
     }
 
+    /// Every non-deleted task, for the Today screen's read-only overview pane:
+    /// active tasks in sort order first, then completed ones (also sorted), so
+    /// done items collect at the bottom. Ignores the All-view status filter.
+    pub fn overview_tasks(&self) -> Vec<Task> {
+        let (mut active, mut done): (Vec<Task>, Vec<Task>) = self
+            .tasks
+            .iter()
+            .filter(|t| !t.deleted)
+            .cloned()
+            .partition(|t| t.status != Status::Done);
+        sort_tasks(&mut active);
+        sort_tasks(&mut done);
+        active.append(&mut done);
+        active
+    }
+
     /// All active tasks passing the current status filter, in sort order.
     pub fn all_tasks(&self) -> Vec<Task> {
         let mut tasks: Vec<Task> = self
@@ -1115,6 +1131,28 @@ mod tests {
         // Shift+S steps back: InProgress -> Todo, without passing through Done.
         a.on_key(key(KeyCode::Char('S'))).unwrap();
         assert_eq!(a.visible_tasks()[0].status, Status::Todo);
+    }
+
+    #[test]
+    fn overview_lists_all_tasks_with_done_last() {
+        let mut a = app();
+        let mut done = Task::new("finished".into());
+        done.set_status(Status::Done);
+        seed(&mut a, done);
+        seed(&mut a, Task::new("todo".into()));
+        let mut wip = Task::new("working".into());
+        wip.set_status(Status::InProgress);
+        seed(&mut a, wip);
+
+        let titles: Vec<_> = a
+            .overview_tasks()
+            .into_iter()
+            .map(|t| t.title)
+            .collect();
+        // All three present (done is excluded from Today but shown here)…
+        assert_eq!(titles.len(), 3);
+        // …and the completed task sorts to the bottom.
+        assert_eq!(titles.last().unwrap(), "finished");
     }
 
     #[test]
