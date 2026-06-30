@@ -639,8 +639,11 @@ impl App {
             self.status_message = Some(format!("Update failed: {e}"));
             return Ok(());
         }
+        let id = task.id;
         self.reload();
-        self.clamp_selection();
+        // Keep the cursor on the edited task even if its new priority/status
+        // reordered the list. Falls back to clamping if it left the view.
+        self.select_task_by_id(id);
         Ok(())
     }
 
@@ -1112,6 +1115,22 @@ mod tests {
         // Shift+S steps back: InProgress -> Todo, without passing through Done.
         a.on_key(key(KeyCode::Char('S'))).unwrap();
         assert_eq!(a.visible_tasks()[0].status, Status::Todo);
+    }
+
+    #[test]
+    fn cursor_follows_task_when_priority_reorders() {
+        let mut a = app();
+        // Two tasks at default priority (Medium); insertion order is the tie-break,
+        // so "a" sorts first and "b" second.
+        seed(&mut a, Task::new("a".into()));
+        seed(&mut a, Task::new("b".into()));
+        // Select "b" (index 1) and bump its priority up so it sorts to the top.
+        a.on_key(key(KeyCode::Char('j'))).unwrap();
+        assert_eq!(a.visible_tasks()[a.selected()].title, "b");
+        a.on_key(key(KeyCode::Char('p'))).unwrap(); // Medium -> High, "b" moves up
+        // Cursor follows "b" to its new position (now index 0).
+        assert_eq!(a.visible_tasks()[a.selected()].title, "b");
+        assert_eq!(a.selected(), 0);
     }
 
     #[test]
